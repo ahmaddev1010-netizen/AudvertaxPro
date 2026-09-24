@@ -141,10 +141,14 @@ export async function submitApplication(formData: FormData) {
   return response;
 }
 
-export async function login(email: string, password: string) {
+export async function login(
+  email: string,
+  password: string,
+  role: "customer" | "admin" | "staff" = "customer",
+) {
   return apiRequest<AuthResponse>("/api/v1/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, role }),
   });
 }
 
@@ -252,9 +256,98 @@ export type AdminApplicationRecord = ApplicationRecord & {
   customer: { id: string; email: string; firstName: string; lastName: string } | null;
 };
 
+export type AdminUserRecord = AuthUser & {
+  applicationsCount: number;
+  paidApplicationsCount: number;
+  latestApplicationAt?: string;
+  paymentStatus?: AdminPaymentState;
+  applicationIds?: string[];
+  applications?: unknown[];
+};
+
+export type AdminStaffRecord = AuthUser & {
+  createdBy?: string;
+};
+
+export type AdminPaymentState = "pending" | "paid" | "refunded";
+
 export async function getAdminApplications() {
   return apiRequest<{ success: true; data: { applications: AdminApplicationRecord[] } }>(
     "/api/v1/admin/applications",
+  );
+}
+
+export async function getAdminUsers() {
+  return apiRequest<{ success: true; data: { users: AdminUserRecord[] } }>(
+    "/api/v1/admin/users",
+  );
+}
+
+export async function getStaffUsers() {
+  return apiRequest<{ success: true; data: { users: AdminUserRecord[] } }>(
+    "/api/v1/staff/users",
+  );
+}
+
+export async function getAdminStaff() {
+  return apiRequest<{ success: true; data: { staff: AdminStaffRecord[] } }>(
+    "/api/v1/admin/staff",
+  );
+}
+
+export async function createAdminStaff(input: {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+}) {
+  return apiRequest<{ success: true; data: { staff: AdminStaffRecord } }>("/api/v1/admin/staff", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function removeAdminStaff(staffId: string) {
+  return apiRequest<{ success: true; data: { message: string } }>(
+    `/api/v1/admin/staff/${encodeURIComponent(staffId)}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function updateAdminPaymentStatus(
+  userId: string,
+  status: AdminPaymentState,
+) {
+  return apiRequest<{ success: true; data: { user: AdminUserRecord } }>(
+    `/api/v1/admin/users/${encodeURIComponent(userId)}/payment-status`,
+    { method: "PATCH", body: JSON.stringify({ status }) },
+  );
+}
+
+export async function updateAdminPassword(currentPassword: string, newPassword: string) {
+  return apiRequest<{ success: true; data: { message: string } }>("/api/v1/auth/password", {
+    method: "PATCH",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
+export async function uploadAdminDocument(applicationId: string, file: File, documentName?: string) {
+  const formData = new FormData();
+  formData.append("document", file);
+  if (documentName) formData.append("documentName", documentName);
+  return apiRequest<{ success: true; data: { path: string; url: string | null } }>(
+    `/api/v1/admin/applications/${encodeURIComponent(applicationId)}/documents`,
+    { method: "POST", body: formData },
+  );
+}
+
+export async function uploadStaffDocument(applicationId: string, file: File, documentName?: string) {
+  const formData = new FormData();
+  formData.append("document", file);
+  if (documentName) formData.append("documentName", documentName);
+  return apiRequest<{ success: true; data: { path: string; url: string | null } }>(
+    `/api/v1/staff/applications/${encodeURIComponent(applicationId)}/documents`,
+    { method: "POST", body: formData },
   );
 }
 

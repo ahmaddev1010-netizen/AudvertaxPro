@@ -5,10 +5,15 @@ import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   FileText,
-  Mail,
+  LockKeyhole,
+  Loader2,
   Menu,
-  MessageCircle,
   Settings,
+  Upload,
+  Users,
+  UserPlus,
+  KeyRound,
+  LogOut,
   X,
   ExternalLink,
 } from "lucide-react";
@@ -18,7 +23,15 @@ import {
   getAdminApplications,
   updateAdminApplicationStatus,
   type AdminApplicationDetail,
+  login,
+  uploadAdminDocument,
 } from "@/lib/api";
+import {
+  AdminSecurityView,
+  AdminUsersView,
+  StaffManagementView,
+  StaffUsersView,
+} from "@/components/admin/AdminOperations";
 
 const adminStatuses = ["processing", "completed", "cancelled"] as const;
 
@@ -133,9 +146,140 @@ function ReadableData({ value, skipKeys = [] }: { value: unknown; skipKeys?: str
   return <p className="p-4 text-sm">{formatValue(value) ?? "—"}</p>;
 }
 
+function AdminLogin() {
+  const { setAuthenticatedUser, logout } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginRole, setLoginRole] = useState<"admin" | "staff">("admin");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setSubmitting(true);
+
+    try {
+      const response = await login(email, password, loginRole);
+      if (response.data.user.role !== loginRole) {
+        await logout();
+        setError(`This account does not have ${loginRole === "admin" ? "admin" : "employee"} access.`);
+        return;
+      }
+      setAuthenticatedUser(response.data.user);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to sign in.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-fm-graphite-deep px-4 py-10 text-fm-text-primary sm:px-6">
+      <div className="w-full max-w-[440px]">
+        <div className="mb-8 flex items-center justify-center gap-3">
+          <div className="flex size-11 items-center justify-center rounded-fm-md bg-fm-lime text-xl font-bold text-fm-graphite-deep">
+            A
+          </div>
+          <div>
+            <p className="text-2xl font-semibold tracking-tight">Audvertax</p>
+            <p className="fm-label mt-0.5">Admin control center</p>
+          </div>
+        </div>
+
+        <section className="rounded-fm-xl border border-fm-border bg-fm-surface p-6 shadow-fm-elevated sm:p-8">
+          <div className="mb-7">
+            <div className="mb-4 flex size-10 items-center justify-center rounded-fm-md bg-fm-lime-soft text-fm-lime">
+              <LockKeyhole size={20} />
+            </div>
+            <p className="fm-label">Restricted access</p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight">Admin sign in</h1>
+            <p className="mt-2 text-sm leading-6 text-fm-text-secondary">
+              Choose your staff role, then sign in to manage customer applications.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="grid grid-cols-2 gap-2 rounded-fm-md bg-fm-graphite-deep p-1">
+              {([
+                ["admin", "Admin"],
+                ["staff", "Employee"],
+              ] as const).map(([role, label]) => (
+                <button
+                  key={role}
+                  type="button"
+                  onClick={() => {
+                    setLoginRole(role);
+                    setError("");
+                  }}
+                  className={[
+                    "h-10 rounded-fm-sm text-sm font-semibold transition-colors",
+                    loginRole === role
+                      ? "bg-fm-lime text-fm-graphite-deep"
+                      : "text-fm-text-secondary hover:text-fm-text-primary",
+                  ].join(" ")}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <label className="block text-sm font-medium">
+              Email address
+              <input
+                required
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="admin@example.com"
+                autoComplete="username"
+                className="mt-2 h-11 w-full rounded-fm-md border border-fm-border bg-fm-graphite-deep px-3 text-sm outline-none transition-colors placeholder:text-fm-text-tertiary focus:border-fm-lime"
+              />
+            </label>
+
+            <label className="block text-sm font-medium">
+              Password
+              <input
+                required
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Enter your password"
+                autoComplete="current-password"
+                className="mt-2 h-11 w-full rounded-fm-md border border-fm-border bg-fm-graphite-deep px-3 text-sm outline-none transition-colors placeholder:text-fm-text-tertiary focus:border-fm-lime"
+              />
+            </label>
+
+            {error && (
+              <p role="alert" className="rounded-fm-md border border-fm-danger/30 bg-fm-danger-soft p-3 text-sm text-fm-danger">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-fm-md bg-fm-lime text-sm font-semibold text-fm-graphite-deep transition-colors hover:bg-fm-lime-bright disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting && <Loader2 size={16} className="animate-spin" />}
+              {submitting
+                ? "Signing in..."
+                : `Sign in as ${loginRole === "admin" ? "admin" : "employee"}`}
+            </button>
+          </form>
+        </section>
+
+        <p className="mt-5 text-center text-xs text-fm-text-tertiary">
+          Authorized Audvertax staff only
+        </p>
+      </div>
+    </main>
+  );
+}
+
 export default function AdminPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const [apps, setApps] = useState<any[]>([]);
   const [selected, setSelected] = useState<AdminApplicationDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -147,19 +291,22 @@ export default function AdminPage() {
   const [serviceFilter, setServiceFilter] = useState("all");
   const [countryFilter, setCountryFilter] = useState("all");
   const [sort, setSort] = useState<"recent" | "old">("recent");
+  const [view, setView] = useState<"applications" | "users" | "staff" | "security" | "staff-users">("users");
+  const [uploadingDocument, setUploadingDocument] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
-      router.replace("/login");
       return;
     }
-    if (user.role !== "admin") {
+    if (user.role !== "admin" && user.role !== "staff") {
       router.replace("/dashboard");
       return;
     }
-    getAdminApplications()
+    const loadApplications = user.role === "admin" ? getAdminApplications() : Promise.resolve(null);
+    loadApplications
       .then((response) =>
+        response &&
         setApps(
           response.data.applications.map((app) => ({
             ...app,
@@ -193,12 +340,35 @@ export default function AdminPage() {
     [apps, statusFilter, serviceFilter, countryFilter, sort],
   );
 
-  if (authLoading || !user || user.role !== "admin")
+  if (authLoading)
     return (
       <main className="fm-page flex min-h-screen items-center justify-center px-fm-6">
         <p className="fm-label">Loading admin panel...</p>
       </main>
     );
+
+  if (!user) return <AdminLogin />;
+
+  if (user.role !== "admin" && user.role !== "staff")
+    return (
+      <main className="fm-page flex min-h-screen items-center justify-center px-fm-6">
+        <p className="fm-label">Redirecting to your dashboard...</p>
+      </main>
+    );
+
+  const navigationItems: Array<{
+    key: typeof view;
+    label: string;
+    Icon: typeof FileText;
+  }> =
+    user.role === "admin"
+      ? [
+          { key: "users", label: "Users", Icon: Users },
+          { key: "staff", label: "Staff", Icon: UserPlus },
+          { key: "security", label: "Security", Icon: KeyRound },
+        ]
+      : [{ key: "staff-users", label: "Paid users", Icon: Users }];
+  const activeView = user.role === "staff" ? "staff-users" : view;
 
   async function openApplication(id: string) {
     setDetailLoading(true);
@@ -231,6 +401,28 @@ export default function AdminPage() {
     }
   }
 
+  async function handleLogout() {
+    await logout();
+    router.replace("/admin");
+  }
+
+  async function uploadDocument(file: File | undefined) {
+    if (!selected || !file) return;
+    setUploadingDocument(true);
+    setError("");
+    try {
+      const response = await uploadAdminDocument(selected.application.id, file);
+      setSelected({
+        ...selected,
+        signedDocuments: [...selected.signedDocuments, response.data],
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to upload document.");
+    } finally {
+      setUploadingDocument(false);
+    }
+  }
+
   return (
     <div className="h-screen overflow-hidden bg-[var(--fm-graphite)] text-[var(--fm-text-primary)]">
       {mobileOpen && (
@@ -255,7 +447,7 @@ export default function AdminPage() {
               audvertax
             </span>
             <span className="rounded-full bg-[var(--fm-lime-soft)] px-2 py-0.5 font-mono text-[9px] font-semibold text-[var(--fm-lime)]">
-              Admin
+              {user.role === "admin" ? "Admin" : "Employee"}
             </span>
           </div>
           <button onClick={() => setMobileOpen(false)} className="ml-auto md:hidden">
@@ -269,33 +461,28 @@ export default function AdminPage() {
           </button>
         </div>
         <nav className="flex-1 px-2.5 pt-3">
-          <div className="mb-1 flex h-[42px] items-center gap-3 rounded-[var(--fm-radius-md)] bg-[var(--fm-lime)] px-4 text-sm font-medium text-[var(--fm-graphite-deep)]">
-            <FileText size={20} />{" "}
-            <span className={!sidebarOpen ? "md:hidden" : ""}>Applications</span>
-          </div>
-          <div className="mb-1 flex h-[42px] items-center gap-3 px-4 text-sm text-[var(--fm-text-secondary)]">
-            <Settings size={20} /> <span className={!sidebarOpen ? "md:hidden" : ""}>Settings</span>
-          </div>
+          {navigationItems.map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setView(key as typeof view)}
+              className={`mb-1 flex h-[42px] w-full items-center gap-3 rounded-[var(--fm-radius-md)] px-4 text-left text-sm font-medium ${activeView === key ? "bg-fm-lime text-fm-graphite-deep" : "text-fm-text-secondary hover:bg-fm-surface"}`}
+            >
+              <Icon size={20} /> <span className={!sidebarOpen ? "md:hidden" : ""}>{label}</span>
+            </button>
+          ))}
         </nav>
         <div
           className={`border-t border-[var(--fm-border)] p-3 ${!sidebarOpen ? "md:opacity-0" : ""}`}
         >
-          <a
-            href="https://wa.me/923164466335"
-            target="_blank"
-            rel="noreferrer"
-            className="mb-3 flex items-center gap-3 rounded-[var(--fm-radius-md)] border border-[var(--fm-border-soft)] bg-[var(--fm-surface)] px-3 py-2.5"
+          <button
+            type="button"
+            onClick={() => void handleLogout()}
+            className="flex w-full items-center gap-3 rounded-[var(--fm-radius-md)] border border-fm-danger/30 bg-fm-danger/5 px-3 py-2.5 text-left text-sm font-semibold text-fm-danger transition-colors hover:bg-fm-danger/10"
           >
-            <MessageCircle size={19} className="text-[var(--fm-success)]" />
-            <span className="text-xs">WhatsApp Support</span>
-          </a>
-          <a
-            href="mailto:support@audvertax.pk"
-            className="flex items-center gap-3 rounded-[var(--fm-radius-md)] border border-[var(--fm-border-soft)] bg-[var(--fm-surface)] px-3 py-2.5"
-          >
-            <Mail size={18} />
-            <span className="text-xs">Email Support</span>
-          </a>
+            <LogOut size={18} />
+            <span className={!sidebarOpen ? "md:hidden" : ""}>Logout</span>
+          </button>
         </div>
       </aside>
 
@@ -316,6 +503,16 @@ export default function AdminPage() {
                 {error}
               </div>
             )}
+            {activeView !== "applications" && (
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {activeView === "users" && <AdminUsersView />}
+                {activeView === "staff" && <StaffManagementView />}
+                {activeView === "security" && <AdminSecurityView />}
+                {activeView === "staff-users" && <StaffUsersView />}
+              </div>
+            )}
+            {activeView === "applications" && (
+              <div className="flex min-h-0 flex-1 flex-col">
             <section className="mb-4 grid shrink-0 gap-2 rounded-fm-xl border border-fm-border-soft bg-fm-surface/80 p-3 shadow-[0_8px_30px_rgba(0,0,0,0.12)] backdrop-blur md:grid-cols-4">
               <select
                 value={statusFilter}
@@ -501,12 +698,28 @@ export default function AdminPage() {
                             <p className="text-sm text-fm-text-secondary">No uploaded documents.</p>
                           )}
                         </div>
+                        <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-fm-md border border-dashed border-fm-border p-3 text-xs font-semibold text-fm-text-secondary hover:border-fm-lime hover:text-fm-lime">
+                          <Upload size={15} />
+                          {uploadingDocument ? "Uploading..." : "Upload document"}
+                          <input
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            disabled={uploadingDocument}
+                            onChange={(event) => {
+                              void uploadDocument(event.target.files?.[0]);
+                              event.currentTarget.value = "";
+                            }}
+                            className="sr-only"
+                          />
+                        </label>
                       </div>
                     </div>
                   </div>
                 )}
               </section>
             </div>
+              </div>
+            )}
           </div>
         </main>
       </div>
