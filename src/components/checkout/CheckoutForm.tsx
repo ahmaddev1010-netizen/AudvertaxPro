@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { getServiceBySlug } from "@/lib/services";
 import { getApplication } from "@/lib/api";
 import { calculateApplicationPricing } from "@/lib/pricing";
-import { createBillingOrder, getBilling, payBillingOrder, type BillingOrder } from "@/lib/api";
+import {
+  createBillingOrder,
+  createCheckoutSession,
+  getBilling,
+  type BillingOrder,
+} from "@/lib/api";
 import { useApplicationState } from "@/components/application/ApplicationStateProvider";
 import { Button } from "@/components/ui/button";
 import { Card, StatusBadge } from "@/components/ui/design-system";
@@ -22,6 +27,9 @@ export default function CheckoutForm({ applicationId }: Props) {
   const [backendApplication, setBackendApplication] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [checkoutState, setCheckoutState] = useState<
+    "idle" | "creating-order" | "creating-session" | "success"
+  >("idle");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -116,6 +124,7 @@ export default function CheckoutForm({ applicationId }: Props) {
     }
 
     setSubmitting(true);
+    setCheckoutState("creating-order");
     try {
       if (["paid", "processing", "completed"].includes(checkoutApplication.status)) {
         setError("This application has already been paid.");
@@ -127,15 +136,32 @@ export default function CheckoutForm({ applicationId }: Props) {
         );
       }
 
-      const order = billingOrder ?? (await createBillingOrder(applicationId)).data;
-      setBillingOrder(order);
-      await payBillingOrder(applicationId, {
-        total: order.total,
-        currency: order.currency,
-      });
-      router.push(`/checkout/success?applicationId=${encodeURIComponent(applicationId)}`);
+      try {
+        const order = billingOrder ?? (await createBillingOrder(applicationId)).data;
+        setBillingOrder(order);
+      } catch (orderError) {
+        const status =
+          orderError instanceof Error && "status" in orderError
+            ? Number((orderError as Error & { status?: number }).status)
+            : undefined;
+
+        if (status !== 409) {
+          throw orderError;
+        }
+      }
+
+      setCheckoutState("creating-session");
+      const checkoutSession = await createCheckoutSession(applicationId);
+      const checkoutUrl = checkoutSession.data?.url;
+      if (!checkoutUrl) {
+        throw new Error("The payment session URL was not returned by the backend.");
+      }
+
+      setCheckoutState("success");
+      window.location.href = checkoutUrl;
     } catch (submitError) {
       console.error("Unable to complete checkout:", submitError);
+      setCheckoutState("idle");
       setError(
         submitError instanceof Error
           ? submitError.message
@@ -275,12 +301,20 @@ export default function CheckoutForm({ applicationId }: Props) {
                 <div className="grid gap-2 sm:grid-cols-2">
                   <Button
                     type="submit"
-                    disabled={submitting || !readyForPayment || !displayPricing?.lineItems.length}
+                    disabled={
+                      submitting ||
+                      checkoutState === "creating-order" ||
+                      checkoutState === "creating-session" ||
+                      !readyForPayment ||
+                      !displayPricing?.lineItems.length
+                    }
                     className="w-full"
                   >
-                    {submitting
-                      ? "Processing order..."
-                      : `Complete order — ${currency} ${total.toFixed(2)}`}
+                    {checkoutState === "creating-order"
+                      ? "Creating order..."
+                      : checkoutState === "creating-session"
+                        ? "Opening Stripe..."
+                        : `Pay now — ${currency} ${total.toFixed(2)}`}
                   </Button>
                   <Button
                     type="button"
@@ -332,7 +366,7 @@ export default function CheckoutForm({ applicationId }: Props) {
               </div>
             </div>
             <div className="mt-5 rounded-[var(--fm-radius-md)] border border-[var(--fm-border)] bg-[var(--fm-surface-raised)] p-3 text-xs leading-5 text-[var(--fm-text-tertiary)]">
-              This is a temporary payment simulation. A real payment provider will replace it later.
+              Secure checkout is handled by Stripe and your session is protected with your account cookie.
             </div>
           </Card>
         </div>

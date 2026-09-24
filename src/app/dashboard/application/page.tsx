@@ -211,7 +211,7 @@ function DashboardApplicationPageContent() {
                     href={`/checkout?applicationId=${encodeURIComponent(application.id)}`}
                     className="inline-flex items-center justify-center rounded-[var(--fm-radius-pill)] bg-[var(--fm-lime)] px-5 py-3 text-sm font-semibold text-[var(--fm-graphite-deep)]"
                   >
-                    Continue to payment
+                    Pay now
                   </Link>
                 )}
               </div>
