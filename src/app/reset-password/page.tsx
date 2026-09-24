@@ -1,12 +1,32 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { resetPassword } from "@/lib/api";
 import { Card, SectionLabel } from "@/components/ui/design-system";
 
 export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<ResetPasswordFallback />}>
+      <ResetPasswordPageContent />
+    </Suspense>
+  );
+}
+
+function ResetPasswordFallback() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[var(--fm-graphite-deep)] px-5 py-12">
+      <Card variant="feature" tone="dark" className="w-full max-w-md p-7 sm:p-10">
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="h-6 w-6 animate-spin text-[var(--fm-lime)]" />
+        </div>
+      </Card>
+    </main>
+  );
+}
+
+function ResetPasswordPageContent() {
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get("token") ?? "";
