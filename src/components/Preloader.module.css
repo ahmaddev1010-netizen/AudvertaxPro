@@ -1,0 +1,95 @@
+.preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--fm-preloader-background);
+  transition: opacity var(--fm-motion-preloader) var(--fm-motion-ease);
+}
+
+.preloader--exiting {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.preloader__background {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(60% 50% at 50% 38%, var(--fm-preloader-glow) 0%, transparent 62%),
+    linear-gradient(
+      160deg,
+      var(--fm-preloader-gradient-start) 0%,
+      var(--fm-preloader-background) 55%,
+      var(--fm-preloader-gradient-end) 100%
+    );
+}
+
+.preloader__grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.4;
+  background-image:
+    linear-gradient(var(--fm-preloader-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--fm-preloader-grid-line) 1px, transparent 1px);
+  background-size: var(--fm-preloader-grid-size) var(--fm-preloader-grid-size);
+  mask-image: var(--fm-preloader-grid-mask);
+  -webkit-mask-image: var(--fm-preloader-grid-mask);
+}
+
+.preloader__content {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--fm-space-3);
+  transform: scale(1);
+  transition: transform var(--fm-motion-preloader) var(--fm-preloader-exit-ease);
+}
+
+.preloader--exiting .preloader__content {
+  transform: scale(var(--fm-preloader-exit-scale));
+}
+
+.preloader__progress {
+  display: flex;
+  align-items: baseline;
+  margin: 0;
+  color: var(--fm-preloader-text);
+  font-family: var(--font-mono), monospace;
+  font-size: var(--fm-preloader-progress-size);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: var(--fm-preloader-progress-tracking);
+}
+
+.preloader__percent {
+  margin-left: var(--fm-space-1);
+  color: var(--fm-preloader-text-soft);
+  font-size: 0.42em;
+  font-weight: 700;
+}
+
+.preloader__status {
+  margin: 0;
+  color: var(--fm-preloader-status-text);
+  font-family: var(--font-mono), monospace;
+  font-size: var(--fm-preloader-status-size);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: var(--fm-preloader-status-tracking);
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preloader {
+    transition: none;
+  }
+
+  .preloader__content {
+    transition: none;
+  }
+}

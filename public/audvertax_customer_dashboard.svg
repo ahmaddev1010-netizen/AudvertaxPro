@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 980" role="img" aria-labelledby="title desc">
+  <title id="title">Audvertax customer dashboard</title>
+  <desc id="desc">A dashboard showing business status, tasks, payments, and documents.</desc>
+  <rect width="1600" height="980" fill="#f8f7fc"/>
+  <rect width="250" height="980" fill="#241044"/>
+  <text x="42" y="65" fill="#fff" font-family="Arial,sans-serif" font-size="28" font-weight="700">audvertax</text>
+  <g fill="#c9bddf" font-family="Arial,sans-serif" font-size="17"><text x="42" y="140">Overview</text><text x="42" y="195">Compliance</text><text x="42" y="250">Documents</text><text x="42" y="305">Payments</text><text x="42" y="360">Settings</text></g>
+  <rect x="292" y="45" width="1240" height="76" rx="14" fill="#fff" stroke="#e8e2f1"/>
+  <circle cx="330" cy="83" r="20" fill="#ede7fb"/><text x="370" y="91" fill="#241638" font-family="Arial,sans-serif" font-size="20" font-weight="700">Good morning, Abdullah</text>
+  <circle cx="1465" cy="83" r="22" fill="#d8c9ff"/>
+  <text x="292" y="178" fill="#241638" font-family="Arial,sans-serif" font-size="30" font-weight="700">Your business at a glance</text>
+  <g font-family="Arial,sans-serif"><rect x="292" y="215" width="375" height="170" rx="16" fill="#fff" stroke="#e8e2f1"/><text x="322" y="255" fill="#756a89" font-size="15">Company status</text><text x="322" y="310" fill="#241638" font-size="38" font-weight="700">Active</text><circle cx="615" cy="305" r="22" fill="#d9f5e8"/><path d="m605 305 7 7 12-15" fill="none" stroke="#0ea672" stroke-width="4"/>
+  <rect x="692" y="215" width="375" height="170" rx="16" fill="#fff" stroke="#e8e2f1"/><text x="722" y="255" fill="#756a89" font-size="15">Next renewal</text><text x="722" y="310" fill="#241638" font-size="38" font-weight="700">May 18</text><text x="722" y="350" fill="#0ea672" font-size="15">278 days remaining</text>
+  <rect x="1092" y="215" width="440" height="170" rx="16" fill="#34078f"/><text x="1122" y="255" fill="#d8c9ff" font-size="15">Open tasks</text><text x="1122" y="310" fill="#fff" font-size="38" font-weight="700">03</text><text x="1122" y="350" fill="#e7defb" font-size="15">Nothing falls through the cracks.</text>
+  <rect x="292" y="425" width="775" height="455" rx="16" fill="#fff" stroke="#e8e2f1"/><text x="322" y="470" fill="#241638" font-size="21" font-weight="700">Recent activity</text><path d="M350 790V570M350 790h650" stroke="#ddd5eb"/><path d="M350 740C430 700 450 730 520 650s110 50 170-35 100 20 160-60 80 0 150-55" fill="none" stroke="#6a2fd6" stroke-width="5"/><g fill="#756a89" font-size="13"><text x="350" y="820">Jan</text><text x="520" y="820">Mar</text><text x="690" y="820">May</text><text x="860" y="820">Jul</text><text x="970" y="820">Sep</text></g>
+  <rect x="1092" y="425" width="440" height="455" rx="16" fill="#fff" stroke="#e8e2f1"/><text x="1122" y="470" fill="#241638" font-size="21" font-weight="700">To do next</text><g font-size="16"><circle cx="1130" cy="535" r="10" fill="#6a2fd6"/><text x="1155" y="541" fill="#241638">Review annual report</text><circle cx="1130" cy="610" r="10" fill="#febc2e"/><text x="1155" y="616" fill="#241638">Confirm business address</text><circle cx="1130" cy="685" r="10" fill="#0ea672"/><text x="1155" y="691" fill="#241638">Download tax documents</text></g>
+  </g>
+</svg>
