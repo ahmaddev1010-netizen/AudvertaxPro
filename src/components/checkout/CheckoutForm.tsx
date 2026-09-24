@@ -305,8 +305,7 @@ export default function CheckoutForm({ applicationId }: Props) {
                       submitting ||
                       checkoutState === "creating-order" ||
                       checkoutState === "creating-session" ||
-                      !readyForPayment ||
-                      !displayPricing?.lineItems.length
+                      !readyForPayment
                     }
                     className="w-full"
                   >

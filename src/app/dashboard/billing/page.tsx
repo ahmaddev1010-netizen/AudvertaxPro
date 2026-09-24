@@ -1,26 +1,73 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { CreditCard, Receipt, ArrowUpRight, ShieldCheck } from "lucide-react";
-import { getBillingOrders, type BillingOrder } from "@/lib/api";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowUpRight, CreditCard, Download, Receipt, ShieldCheck } from "lucide-react";
+import { getBillingOrders, getMyApplications, type BillingOrder } from "@/lib/api";
+import { downloadPaymentSlip } from "@/lib/payment-slip";
+import { getServiceBySlug } from "@/lib/services";
 import { Card, SectionLabel, StatusBadge } from "@/components/ui/design-system";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+type EnrichedBillingOrder = BillingOrder & {
+  serviceName: string;
+  serviceSlug?: string;
+  paymentReference: string;
+  paidAt?: string;
+};
+
 export default function BillingPage() {
   const [orders, setOrders] = useState<BillingOrder[]>([]);
+  const [applications, setApplications] = useState<Array<{ id: string; serviceSlug?: string; service?: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    getBillingOrders()
-      .then((response) => setOrders(response.data))
+    Promise.all([getBillingOrders(), getMyApplications()])
+      .then(([billingResponse, applicationsResponse]) => {
+        setOrders(billingResponse.data);
+        setApplications(applicationsResponse.data.applications);
+      })
       .catch((err) => {
         setError(err instanceof Error ? err.message : "Unable to load billing.");
       })
       .finally(() => setLoading(false));
   }, []);
+
+  const enrichedOrders = useMemo<EnrichedBillingOrder[]>(() => {
+    const lookup = new Map(applications.map((application) => [application.id, application]));
+
+    return orders.map((order) => {
+      const app = lookup.get(order.applicationId);
+      const serviceFromSlug = app?.serviceSlug ? getServiceBySlug(app.serviceSlug) : undefined;
+      const serviceName =
+        serviceFromSlug?.name ??
+        (typeof app?.service === "string" ? app.service : undefined) ??
+        "Service application";
+
+      return {
+        ...order,
+        serviceName,
+        serviceSlug: app?.serviceSlug,
+        paymentReference: order.status === "paid" ? (order.id || order.applicationId) : "Pending",
+        paidAt: order.status === "paid" ? order.updatedAt : undefined,
+      };
+    });
+  }, [applications, orders]);
+
+  const downloadSlip = (order: EnrichedBillingOrder) => {
+    downloadPaymentSlip({
+      applicationId: order.applicationId,
+      orderId: order.id,
+      serviceName: order.serviceName,
+      status: order.status === "paid" ? "paid" : "pending",
+      currency: order.currency,
+      total: order.total,
+      paymentReference: order.paymentReference,
+      paidAt: order.paidAt,
+    });
+  };
 
   return (
     <main className="min-h-screen bg-[var(--fm-graphite)] text-[var(--fm-text-primary)]">
@@ -50,63 +97,106 @@ export default function BillingPage() {
           <Card className="p-10 text-center">Loading billing...</Card>
         ) : error ? (
           <Card className="p-10 text-center text-[var(--fm-danger)]">{error}</Card>
-        ) : !orders.length ? (
-          <Card variant="feature" className="p-10 text-center">
-            <CreditCard className="mx-auto text-[var(--fm-lime)]" size={34} />
-            <h3 className="mt-4 text-xl font-semibold">No bills yet</h3>
-            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--fm-text-secondary)]">
-              Paid applications will create their bills here automatically.
-            </p>
-          </Card>
         ) : (
-          <div className="space-y-5">
-            {orders.map((order) => (
-              <Card key={order.id} variant="standard" className="overflow-hidden">
-                <div className="flex flex-col gap-4 border-b border-[var(--fm-border)] px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <>
+            <section className="mb-8 overflow-hidden rounded-[var(--fm-radius-xl)] border border-[var(--fm-border)] bg-[var(--fm-surface)] p-0">
+              <div className="px-4 py-4 md:px-6">
+                <div className="flex items-center justify-between gap-3 border-b border-[var(--fm-border)] pb-4">
                   <div>
                     <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--fm-text-tertiary)]">
-                      Application {order.applicationId}
+                      Bills
                     </p>
-                    <h3 className="mt-1 font-semibold">
-                      Order {order.id.slice(0, 8).toUpperCase()}
+                    <h3 className="mt-2 text-2xl font-semibold text-[var(--fm-text-primary)]">
+                      Your persisted billing orders
                     </h3>
                   </div>
-                  <StatusBadge status={order.status === "paid" ? "success" : "info"}>
-                    {order.status === "paid" ? "Paid" : "Pending payment"}
-                  </StatusBadge>
                 </div>
-                <div className="p-6">
-                  {order.lineItems.map((item) => (
-                    <div
-                      key={item.key}
-                      className="flex justify-between border-b border-[var(--fm-border)] py-3 text-sm"
-                    >
-                      <span>{item.label}</span>
-                      <b>
-                        {item.currency} {item.total.toFixed(2)}
-                      </b>
-                    </div>
-                  ))}
-                  <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-xs text-[var(--fm-text-tertiary)]">Total</p>
-                      <p className="text-xl font-semibold">
-                        {order.currency} {order.total.toFixed(2)}
-                      </p>
-                    </div>
-                    {order.status === "pending" && (
-                      <Link
-                        href={`/checkout?applicationId=${encodeURIComponent(order.applicationId)}`}
-                        className={cn(buttonVariants(), "w-full sm:w-auto")}
-                      >
-                        Continue to payment <ArrowUpRight size={16} />
-                      </Link>
-                    )}
+                {!enrichedOrders.length ? (
+                  <div className="p-10 text-center">
+                    <CreditCard className="mx-auto text-[var(--fm-lime)]" size={34} />
+                    <h4 className="mt-4 text-xl font-semibold">No bills yet</h4>
+                    <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--fm-text-secondary)]">
+                      Paid applications will create their bills here automatically.
+                    </p>
                   </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {enrichedOrders.map((order) => (
+                      <div
+                        key={order.id}
+                        className="rounded-[var(--fm-radius-lg)] border border-[var(--fm-border)] bg-[var(--fm-surface-raised)] p-4"
+                      >
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                          <div className="min-w-0">
+                            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--fm-text-tertiary)]">
+                              {order.applicationId.slice(0, 12)}
+                            </p>
+                            <p className="mt-2 text-xl font-semibold text-[var(--fm-text-primary)]">
+                              {order.serviceName}
+                            </p>
+                          </div>
+                          <StatusBadge status={order.status === "paid" ? "success" : "info"}>
+                            {order.status === "paid" ? "Paid" : "Pending"}
+                          </StatusBadge>
+                        </div>
+
+                        <div className="mt-4 grid gap-3 md:grid-cols-[1.4fr_1fr_1.2fr_auto] md:items-end">
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.12em] text-[var(--fm-text-tertiary)]">
+                              Payment details
+                            </p>
+                            <p className="mt-2 text-sm text-[var(--fm-text-secondary)]">
+                              {order.status === "paid" ? (
+                                <>
+                                  <span className="font-medium text-[var(--fm-text-primary)]">
+                                    TX: {order.paymentReference.slice(0, 18)}
+                                  </span>
+                                  <br />
+                                  {order.paidAt ? new Date(order.paidAt).toLocaleDateString() : "Completed"}
+                                </>
+                              ) : (
+                                "Reference will appear after payment"
+                              )}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.12em] text-[var(--fm-text-tertiary)]">
+                              Amount
+                            </p>
+                            <p className="mt-2 text-2xl font-bold text-[var(--fm-text-primary)]">
+                              {order.currency} {order.total.toFixed(2)}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                            {order.status === "pending" && (
+                              <Link
+                                href={`/checkout?applicationId=${encodeURIComponent(order.applicationId)}`}
+                                className={cn(buttonVariants({ size: "sm" }), "justify-center")}
+                              >
+                                Pay now <ArrowUpRight size={15} />
+                              </Link>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => downloadSlip(order)}
+                              className={cn(
+                                buttonVariants({ variant: "outline", size: "sm" }),
+                                "justify-center",
+                              )}
+                            >
+                              Slip <Download size={15} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          </>
         )}
         <div className="mt-6 grid gap-6 md:grid-cols-2">
           <Card className="p-6">

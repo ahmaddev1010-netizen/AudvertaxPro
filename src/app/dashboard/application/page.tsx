@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Card, CardAction, StatusBadge } from "@/components/ui/design-system";
 import { LoadingState } from "@/components/ui/interaction-controls";
 import { useApplicationState } from "@/components/application/ApplicationStateProvider";
@@ -33,24 +33,29 @@ export default function DashboardApplicationPage() {
 function DashboardApplicationPageContent() {
   const params = useSearchParams();
   const requestedId = params.get("id");
-  const { application, hydrated } = useApplicationState();
+  const { application, applications, hydrated } = useApplicationState();
   const [billingOrder, setBillingOrder] = useState<BillingOrder | null>(null);
-  const lastRequestedIdRef = useRef<string | null>(null);
+
+  const requestedApplication = requestedId
+    ? applications.find((candidate) => candidate.id === requestedId) ?? application
+    : application;
 
   useEffect(() => {
     if (!hydrated || !requestedId) return;
-    if (application?.id !== requestedId) return;
+    if (requestedApplication?.id !== requestedId) return;
     void getBilling(requestedId)
       .then((response) => setBillingOrder(response.data))
       .catch(() => setBillingOrder(null));
-  }, [hydrated, requestedId, application?.id]);
-  if (!hydrated || (requestedId && application?.id !== requestedId))
+  }, [hydrated, requestedId, requestedApplication?.id]);
+
+  if (!hydrated || (requestedId && !requestedApplication))
     return (
       <main className="flex min-h-screen items-center justify-center bg-[var(--fm-graphite)] px-6">
         <LoadingState label="Loading your application..." />
       </main>
     );
-  if (!application)
+
+  if (!requestedApplication)
     return (
       <main className="min-h-screen bg-[var(--fm-graphite)] px-4 py-12">
         <Card className="mx-auto max-w-xl p-8 text-center">
@@ -66,31 +71,36 @@ function DashboardApplicationPageContent() {
         </Card>
       </main>
     );
-  const service = getServiceBySlug(application.serviceSlug);
-  const config = getApplicationConfig(application.serviceSlug);
+
+  const service = getServiceBySlug(requestedApplication.serviceSlug);
+  const config = getApplicationConfig(requestedApplication.serviceSlug);
   const pricing = calculateApplicationPricing({
-    serviceSlug: application.serviceSlug,
-    packageSlug: application.packageSlug,
-    formationState: application.formationState,
-    variantSlug: application.variantSlug,
-    addOnSlugs: application.addOnSlugs,
+    serviceSlug: requestedApplication.serviceSlug,
+    packageSlug: requestedApplication.packageSlug,
+    formationState: requestedApplication.formationState,
+    variantSlug: requestedApplication.variantSlug,
+    addOnSlugs: requestedApplication.addOnSlugs,
   });
-  const isEditable = isCustomerApplicationEditable(application.status);
-  const isPaid = application.status === "paid";
+  const isEditable = isCustomerApplicationEditable(requestedApplication.status);
+  const isPaid = requestedApplication.status === "paid";
   const stepCount = config?.steps.length ?? 0;
   const progress = !isEditable
     ? 100
-    : application.status === "ready_for_payment" || application.status === "submitted"
+    : requestedApplication.status === "ready_for_payment" || requestedApplication.status === "submitted"
       ? 90
       : stepCount > 0
-        ? Math.min(85, Math.max(10, Math.round(((application.currentStep + 1) / stepCount) * 100)))
+        ? Math.min(
+            85,
+            Math.max(10, Math.round(((requestedApplication.currentStep + 1) / stepCount) * 100)),
+          )
         : 0;
   const displayTotal = billingOrder?.status === "paid" ? billingOrder.total : pricing.total;
   const displayCurrency =
     billingOrder?.status === "paid" ? billingOrder.currency : pricing.currency;
-  const documents = application.documents ?? [];
-  const isUkDirectorVerification = application.serviceSlug === "uk-director-id-verification";
-  const isPostOrder = ["paid", "processing", "completed"].includes(application.status);
+  const documents = requestedApplication.documents ?? [];
+  const isUkDirectorVerification =
+    requestedApplication.serviceSlug === "uk-director-id-verification";
+  const isPostOrder = ["paid", "processing", "completed"].includes(requestedApplication.status);
   return (
     <main className="min-h-screen bg-[var(--fm-graphite)]">
       <header className="border-b border-[var(--fm-border)] bg-[var(--fm-surface)]">
@@ -119,26 +129,27 @@ function DashboardApplicationPageContent() {
             <div>
               <p className="text-sm text-[var(--fm-text-tertiary)]">Application</p>
               <h1 className="mt-1 text-3xl font-semibold tracking-tight text-[var(--fm-text-primary)]">
-                {service?.name ?? application.serviceSlug}
+                {service?.name ?? requestedApplication.serviceSlug}
               </h1>
               <p className="mt-2 break-all font-mono text-xs text-[var(--fm-text-tertiary)]">
-                {application.id}
+                {requestedApplication.id}
               </p>
             </div>
             <StatusBadge
               status={
-                application.status === "cancelled"
+                requestedApplication.status === "cancelled"
                   ? "danger"
-                  : application.status === "completed" || application.status === "paid"
+                  : requestedApplication.status === "completed" ||
+                      requestedApplication.status === "paid"
                     ? "success"
-                    : application.status === "submitted" ||
-                        application.status === "ready_for_payment" ||
-                        application.status === "changes_requested"
+                    : requestedApplication.status === "submitted" ||
+                        requestedApplication.status === "ready_for_payment" ||
+                        requestedApplication.status === "changes_requested"
                       ? "info"
                       : "neutral"
               }
             >
-              {statusLabels[application.status]}
+              {statusLabels[requestedApplication.status]}
             </StatusBadge>
           </div>
         </div>
@@ -175,9 +186,9 @@ function DashboardApplicationPageContent() {
               {(config?.steps ?? []).map((step, index) => {
                 const done =
                   !isEditable ||
-                  application.status === "submitted" ||
-                  application.status === "ready_for_payment" ||
-                  index < application.currentStep;
+                  requestedApplication.status === "submitted" ||
+                  requestedApplication.status === "ready_for_payment" ||
+                  index < requestedApplication.currentStep;
                 return (
                   <div
                     key={step.id}
@@ -202,13 +213,13 @@ function DashboardApplicationPageContent() {
                 <div className="rounded-[var(--fm-radius-md)] border border-[var(--fm-success)]/30 bg-[var(--fm-success-soft)] p-4 text-sm text-[var(--fm-success)]">
                   {isPaid
                     ? "This application has been paid and is now locked. Your submitted information cannot be edited."
-                    : application.status === "ready_for_payment"
+                    : requestedApplication.status === "ready_for_payment"
                       ? "Your application is submitted and locked. Payment is the only remaining step."
                       : "This application is locked and can no longer be edited."}
                 </div>
-                {application.status === "ready_for_payment" && (
+                {requestedApplication.status === "ready_for_payment" && (
                   <Link
-                    href={`/checkout?applicationId=${encodeURIComponent(application.id)}`}
+                    href={`/checkout?applicationId=${encodeURIComponent(requestedApplication.id)}`}
                     className="inline-flex items-center justify-center rounded-[var(--fm-radius-pill)] bg-[var(--fm-lime)] px-5 py-3 text-sm font-semibold text-[var(--fm-graphite-deep)]"
                   >
                     Pay now
@@ -217,11 +228,11 @@ function DashboardApplicationPageContent() {
               </div>
             ) : (
               <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-                <CardAction href={`/apply/${application.id}`} className="sm:w-auto">
+                <CardAction href={`/apply/${requestedApplication.id}`} className="sm:w-auto">
                   Continue application
                 </CardAction>
                 <Link
-                  href={`/checkout?applicationId=${application.id}`}
+                  href={`/checkout?applicationId=${requestedApplication.id}`}
                   className="inline-flex items-center justify-center rounded-[var(--fm-radius-pill)] border border-[var(--fm-border)] px-5 py-3 text-sm font-semibold text-[var(--fm-text-primary)] transition-[background-color,border-color,color] duration-[var(--fm-motion-component)] ease-[var(--fm-motion-ease)] hover:bg-[var(--fm-surface-raised)]"
                 >
                   View checkout
@@ -236,13 +247,13 @@ function DashboardApplicationPageContent() {
                 <div>
                   <dt className="text-xs text-[var(--fm-text-tertiary)]">Formation state</dt>
                   <dd className="mt-1 text-sm font-medium text-[var(--fm-text-primary)]">
-                    {application.formationState ?? "Not selected"}
+                    {requestedApplication.formationState ?? "Not selected"}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-xs text-[var(--fm-text-tertiary)]">Package</dt>
                   <dd className="mt-1 text-sm font-medium text-[var(--fm-text-primary)]">
-                    {application.packageSlug ?? "Default"}
+                    {requestedApplication.packageSlug ?? "Default"}
                   </dd>
                 </div>
                 <div>
@@ -256,7 +267,7 @@ function DashboardApplicationPageContent() {
                 <div>
                   <dt className="text-xs text-[var(--fm-text-tertiary)]">Last updated</dt>
                   <dd className="mt-1 text-sm text-[var(--fm-text-secondary)]">
-                    {new Date(application.updatedAt).toLocaleString()}
+                    {new Date(requestedApplication.updatedAt).toLocaleString()}
                   </dd>
                 </div>
               </dl>

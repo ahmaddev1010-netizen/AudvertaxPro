@@ -14,6 +14,7 @@ import {
   CircleDollarSign,
   Clock3,
   CreditCard,
+  Download,
   FileCheck2,
   FileText,
   Grid2X2,
@@ -35,6 +36,7 @@ import { getServiceBySlug, getApplicationConfig } from "@/lib/services";
 import { calculateApplicationPricing } from "@/lib/pricing";
 import { getDocumentsForService } from "@/lib/documents/catalog";
 import { getBillingOrders, type BillingOrder } from "@/lib/api";
+import { downloadPaymentSlip } from "@/lib/payment-slip";
 import { useAuth } from "@/components/auth/AuthProvider";
 import MyApplications from "@/components/dashboard/MyApplications";
 import { Card, IconContainer, PageHeader, StatusBadge } from "@/components/ui/design-system";
@@ -540,7 +542,12 @@ function DashboardPageContent() {
             </>
           )}
           {active === "Billing" && (
-            <DashboardBilling application={application} service={service} pricing={pricing} />
+            <DashboardBilling
+              application={application}
+              applications={applications}
+              service={service}
+              pricing={pricing}
+            />
           )}
           {active === "Documents" && (
             <DashboardDocuments application={application} documents={documents} />
@@ -604,7 +611,7 @@ function DashboardPageContent() {
   );
 }
 
-function DashboardBilling({ application, service, pricing }: any) {
+function DashboardBilling({ application, applications, service, pricing }: any) {
   const [orders, setOrders] = useState<BillingOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
 
@@ -683,25 +690,55 @@ function DashboardBilling({ application, service, pricing }: any) {
               <p className="text-sm text-[var(--fm-text-secondary)]">Loading bills...</p>
             ) : orders.length ? (
               <div className="space-y-3">
-                {orders.map((order) => (
-                  <Link
-                    key={order.id}
-                    href={`/checkout?applicationId=${encodeURIComponent(order.applicationId)}`}
-                    className="block rounded-[var(--fm-radius-md)] border border-[var(--fm-border)] p-4 hover:bg-[var(--fm-surface-raised)]"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-xs text-[var(--fm-text-tertiary)]">
-                        {order.applicationId}
-                      </span>
-                      <StatusBadge status={order.status === "paid" ? "success" : "warning"}>
-                        {order.status === "paid" ? "Paid" : "Pending"}
-                      </StatusBadge>
+                {orders.map((order) => {
+                  const orderApplication = applications.find(
+                    (item: any) => item.id === order.applicationId,
+                  );
+                  const orderService = orderApplication
+                    ? getServiceBySlug(orderApplication.serviceSlug)
+                    : undefined;
+
+                  const downloadSlip = () => {
+                    downloadPaymentSlip({
+                      applicationId: order.applicationId,
+                      orderId: order.id,
+                      serviceName: orderService?.name ?? "Service application",
+                      status: order.status === "paid" ? "paid" : "pending",
+                      currency: order.currency,
+                      total: order.total,
+                      paymentReference: order.status === "paid" ? order.id : undefined,
+                      paidAt: order.status === "paid" ? order.updatedAt : undefined,
+                    });
+                  };
+
+                  return (
+                    <div
+                      key={order.id}
+                      className="rounded-[var(--fm-radius-lg)] border border-[var(--fm-border)] bg-[var(--fm-surface)] p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[11px] leading-5 text-[var(--fm-text-tertiary)]">
+                          {order.applicationId}
+                        </span>
+                        <StatusBadge status={order.status === "paid" ? "success" : "warning"}>
+                          {order.status === "paid" ? "Paid" : "Pending"}
+                        </StatusBadge>
+                      </div>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <p className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--fm-text-primary)]">
+                          {order.currency} {order.total.toFixed(2)}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={downloadSlip}
+                          className="inline-flex items-center gap-1.5 rounded-[var(--fm-radius-pill)] border border-[var(--fm-border)] bg-[var(--fm-surface-raised)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--fm-text-primary)] transition-colors hover:bg-[var(--fm-surface)]"
+                        >
+                          Slip <Download size={13} />
+                        </button>
+                      </div>
                     </div>
-                    <p className="mt-2 text-lg font-semibold">
-                      {order.currency} {order.total.toFixed(2)}
-                    </p>
-                  </Link>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="text-sm text-[var(--fm-text-secondary)]">No billing orders yet.</p>
