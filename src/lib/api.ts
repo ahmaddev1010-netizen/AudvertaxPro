@@ -1,6 +1,4 @@
-import { getApiBaseUrl } from "@/lib/api-config";
-
-const API_URL = getApiBaseUrl();
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://audvertax-back-end.vercel.app/";
 
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
@@ -77,14 +75,6 @@ export type ApplicationResponse = {
     billing: BillingOrder | null;
     applicationMode: "paid" | "contact";
     message: string;
-  };
-};
-
-export type StripeCheckoutSession = {
-  success: true;
-  data: {
-    id: string;
-    url: string;
   };
 };
 
@@ -210,13 +200,6 @@ export async function getBilling(applicationId: string) {
 export async function createBillingOrder(applicationId: string) {
   return apiRequest<{ success: true; data: BillingOrder }>(
     `/api/v1/billing/${encodeURIComponent(applicationId)}/order`,
-    { method: "POST", body: JSON.stringify({}) },
-  );
-}
-
-export async function createCheckoutSession(applicationId: string) {
-  return apiRequest<StripeCheckoutSession>(
-    `/api/v1/billing/${encodeURIComponent(applicationId)}/checkout-session`,
     { method: "POST", body: JSON.stringify({}) },
   );
 }
