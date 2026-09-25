@@ -30,7 +30,6 @@ import {
   AdminSecurityView,
   AdminUsersView,
   StaffManagementView,
-  StaffUsersView,
 } from "@/components/admin/AdminOperations";
 
 const adminStatuses = ["processing", "completed", "cancelled"] as const;
@@ -291,7 +290,7 @@ export default function AdminPage() {
   const [serviceFilter, setServiceFilter] = useState("all");
   const [countryFilter, setCountryFilter] = useState("all");
   const [sort, setSort] = useState<"recent" | "old">("recent");
-  const [view, setView] = useState<"applications" | "users" | "staff" | "security" | "staff-users">("users");
+  const [view, setView] = useState<"applications" | "users" | "staff" | "security">("users");
   const [uploadingDocument, setUploadingDocument] = useState(false);
 
   useEffect(() => {
@@ -299,14 +298,16 @@ export default function AdminPage() {
     if (!user) {
       return;
     }
-    if (user.role !== "admin" && user.role !== "staff") {
+    if (user.role === "staff") {
+      router.replace("/staff");
+      return;
+    }
+    if (user.role !== "admin") {
       router.replace("/dashboard");
       return;
     }
-    const loadApplications = user.role === "admin" ? getAdminApplications() : Promise.resolve(null);
-    loadApplications
+    getAdminApplications()
       .then((response) =>
-        response &&
         setApps(
           response.data.applications.map((app) => ({
             ...app,
@@ -349,7 +350,14 @@ export default function AdminPage() {
 
   if (!user) return <AdminLogin />;
 
-  if (user.role !== "admin" && user.role !== "staff")
+  if (user.role === "staff")
+    return (
+      <main className="fm-page flex min-h-screen items-center justify-center px-fm-6">
+        <p className="fm-label">Opening staff portal...</p>
+      </main>
+    );
+
+  if (user.role !== "admin")
     return (
       <main className="fm-page flex min-h-screen items-center justify-center px-fm-6">
         <p className="fm-label">Redirecting to your dashboard...</p>
@@ -360,15 +368,12 @@ export default function AdminPage() {
     key: typeof view;
     label: string;
     Icon: typeof FileText;
-  }> =
-    user.role === "admin"
-      ? [
-          { key: "users", label: "Users", Icon: Users },
-          { key: "staff", label: "Staff", Icon: UserPlus },
-          { key: "security", label: "Security", Icon: KeyRound },
-        ]
-      : [{ key: "staff-users", label: "Paid users", Icon: Users }];
-  const activeView = user.role === "staff" ? "staff-users" : view;
+  }> = [
+    { key: "users", label: "Users", Icon: Users },
+    { key: "staff", label: "Staff", Icon: UserPlus },
+    { key: "security", label: "Security", Icon: KeyRound },
+  ];
+  const activeView = view;
 
   async function openApplication(id: string) {
     setDetailLoading(true);
@@ -508,7 +513,6 @@ export default function AdminPage() {
                 {activeView === "users" && <AdminUsersView />}
                 {activeView === "staff" && <StaffManagementView />}
                 {activeView === "security" && <AdminSecurityView />}
-                {activeView === "staff-users" && <StaffUsersView />}
               </div>
             )}
             {activeView === "applications" && (
@@ -690,7 +694,7 @@ export default function AdminPage() {
                                 rel="noreferrer"
                                 className="flex items-center justify-between rounded-fm-md border border-fm-border p-3 text-sm hover:bg-fm-surface-raised"
                               >
-                                <span className="truncate">{doc.path.split("/").pop()}</span>
+                                <span className="truncate">{doc.path?.split("/").pop() ?? "Uploaded document"}</span>
                                 <ExternalLink size={15} />
                               </a>
                             ))

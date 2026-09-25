@@ -11,8 +11,9 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const isDashboard = pathname === "/dashboard";
   const isAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
+  const isStaff = pathname === "/staff" || pathname.startsWith("/staff/");
   const isApplication = pathname === "/application" || pathname.endsWith("/application");
-  const showSiteChrome = !isDashboard && !isAdmin && !isApplication;
+  const showSiteChrome = !isDashboard && !isAdmin && !isStaff && !isApplication;
 
   const applicationBackPath =
     pathname === "/application"

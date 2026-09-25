@@ -125,6 +125,9 @@ export async function submitApplication(formData: FormData) {
     formData.set("application", JSON.stringify(application));
   }
 
+  formData.set("uploadedByRole", "customer");
+  formData.set("uploadedBy", "customer");
+
   const response = await apiRequest<ApplicationResponse>("/api/v1/applications", {
     method: "POST",
     body: formData,
@@ -289,6 +292,12 @@ export async function getStaffUsers() {
   );
 }
 
+export async function getStaffApplications() {
+  return apiRequest<{ success: true; data: { applications: AdminApplicationRecord[] } }>(
+    "/api/v1/staff/applications",
+  );
+}
+
 export async function getAdminStaff() {
   return apiRequest<{ success: true; data: { staff: AdminStaffRecord[] } }>(
     "/api/v1/admin/staff",
@@ -334,7 +343,9 @@ export async function updateAdminPassword(currentPassword: string, newPassword: 
 export async function uploadAdminDocument(applicationId: string, file: File, documentName?: string) {
   const formData = new FormData();
   formData.append("document", file);
-  if (documentName) formData.append("documentName", documentName);
+  formData.append("documentName", documentName || file.name);
+  formData.append("uploadedByRole", "admin");
+  formData.append("uploadedBy", "admin");
   return apiRequest<{ success: true; data: { path: string; url: string | null } }>(
     `/api/v1/admin/applications/${encodeURIComponent(applicationId)}/documents`,
     { method: "POST", body: formData },
@@ -344,7 +355,9 @@ export async function uploadAdminDocument(applicationId: string, file: File, doc
 export async function uploadStaffDocument(applicationId: string, file: File, documentName?: string) {
   const formData = new FormData();
   formData.append("document", file);
-  if (documentName) formData.append("documentName", documentName);
+  formData.append("documentName", documentName || file.name);
+  formData.append("uploadedByRole", "staff");
+  formData.append("uploadedBy", "staff");
   return apiRequest<{ success: true; data: { path: string; url: string | null } }>(
     `/api/v1/staff/applications/${encodeURIComponent(applicationId)}/documents`,
     { method: "POST", body: formData },
@@ -366,11 +379,46 @@ export type AdminApplicationDetail = {
   application: ApplicationRecord;
   customer: { id: string; email: string; firstName: string; lastName: string } | null;
   billing: BillingOrder | null;
-  signedDocuments: { path: string; url: string | null }[];
+  signedDocuments: ApplicationDocument[];
+};
+
+export type ApplicationDocument = {
+  id?: string;
+  path?: string;
+  url?: string | null;
+  name?: string;
+  size?: number;
+  type?: string;
+  uploadedAt?: string;
+  uploadedByName?: string;
+  source?: string;
+  role?: string;
+  uploaderRole?: string;
+  uploadedBy?: string | { role?: string; name?: string; email?: string };
+  uploadedByRole?: "customer" | "admin" | "staff" | string;
+  documentName?: string;
+  category?: "owner" | "member" | "staff" | "admin" | "customer" | string;
 };
 
 export async function getAdminApplication(applicationId: string) {
   return apiRequest<{ success: true; data: AdminApplicationDetail }>(
     `/api/v1/admin/applications/${encodeURIComponent(applicationId)}`,
+  );
+}
+
+export async function getStaffApplication(applicationId: string) {
+  return apiRequest<{ success: true; data: AdminApplicationDetail }>(
+    `/api/v1/staff/applications/${encodeURIComponent(applicationId)}`,
+  );
+}
+
+export async function updateStaffApplicationStatus(
+  applicationId: string,
+  status: Extract<ApplicationRecord["status"], "processing" | "completed" | "cancelled">,
+  expectedUpdatedAt: string,
+) {
+  return apiRequest<{ success: true; data: { application: ApplicationRecord } }>(
+    `/api/v1/staff/applications/${encodeURIComponent(applicationId)}/status`,
+    { method: "PATCH", body: JSON.stringify({ status, expectedUpdatedAt }) },
   );
 }

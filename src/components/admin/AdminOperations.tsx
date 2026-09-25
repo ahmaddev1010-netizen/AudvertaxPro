@@ -21,14 +21,13 @@ import {
   getAdminApplication,
   getAdminStaff,
   getAdminUsers,
-  getStaffUsers,
   removeAdminStaff,
   updateAdminPassword,
-  updateAdminPaymentStatus,
+  updateAdminApplicationStatus,
   uploadAdminDocument,
-  uploadStaffDocument,
   type AdminApplicationRecord,
-  type AdminPaymentState,
+  type AdminApplicationDetail,
+  type ApplicationDocument,
   type AdminStaffRecord,
   type AdminUserRecord,
 } from "@/lib/api";
@@ -73,6 +72,8 @@ function readableKey(key: string) {
     .replace(/[_-]+/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
+
+const applicationStatuses = ["submitted", "processing", "completed", "cancelled"] as const;
 
 function ApplicationData({ value }: { value: unknown }) {
   if (Array.isArray(value)) {
@@ -170,14 +171,11 @@ function UserCard({
   user,
   applicationCount,
   onClick,
-  onPaymentChange,
 }: {
   user: AdminUserRecord;
   applicationCount: number;
   onClick: () => void;
-  onPaymentChange: (user: AdminUserRecord, status: AdminPaymentState) => Promise<void>;
 }) {
-  const paymentStatus = user.paymentStatus ?? (user.paidApplicationsCount > 0 ? "paid" : "pending");
   return (
     <div
       role="button"
@@ -204,18 +202,6 @@ function UserCard({
         <div><p className="fm-label">Services</p><p className="mt-1 text-sm text-fm-text-primary">{applicationCount} submitted</p></div>
         <div><p className="fm-label">Last activity</p><p className="mt-1 text-sm text-fm-text-primary">{formatDate(user.latestApplicationAt)}</p></div>
       </div>
-      <div className="mt-4 flex items-center justify-between gap-3 border-t border-fm-border-soft pt-3" onClick={(event) => event.stopPropagation()}>
-        <span className="text-xs text-fm-text-secondary">{user.paidApplicationsCount} paid application{user.paidApplicationsCount === 1 ? "" : "s"}</span>
-        <select
-          value={paymentStatus}
-          onChange={(event) => void onPaymentChange(user, event.target.value as AdminPaymentState)}
-          className="h-9 rounded-fm-md border border-fm-border bg-fm-surface px-2 text-xs outline-none focus:border-fm-lime"
-        >
-          <option value="pending">Payment pending</option>
-          <option value="paid">Payment received</option>
-          <option value="refunded">Refunded</option>
-        </select>
-      </div>
     </div>
   );
 }
@@ -226,8 +212,9 @@ export function AdminUsersView() {
   const [selectedUser, setSelectedUser] = useState<AdminUserRecord | null>(null);
   const [uploadingApplication, setUploadingApplication] = useState<string | null>(null);
   const [expandedApplicationId, setExpandedApplicationId] = useState<string | null>(null);
-  const [applicationDocuments, setApplicationDocuments] = useState<Record<string, Array<{ path: string; url: string | null }>>>({});
+  const [applicationDocuments, setApplicationDocuments] = useState<Record<string, ApplicationDocument[]>>({});
   const [loadingDocuments, setLoadingDocuments] = useState<string | null>(null);
+  const [updatingApplicationId, setUpdatingApplicationId] = useState<string | null>(null);
   const [uploadTarget, setUploadTarget] = useState<{ applicationId: string; options: string[] } | null>(null);
   const [uploadDocumentName, setUploadDocumentName] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -257,15 +244,6 @@ export function AdminUsersView() {
       .catch((err) => setError(err instanceof Error ? err.message : "Unable to load users."))
       .finally(() => setLoading(false));
   }, []);
-
-  async function changePaymentStatus(user: AdminUserRecord, status: AdminPaymentState) {
-    try {
-      const response = await updateAdminPaymentStatus(user.id, status);
-      setUsers((current) => current.map((item) => (item.id === user.id ? response.data.user : item)));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to update payment status.");
-    }
-  }
 
   async function uploadDocument() {
     if (!uploadTarget || !uploadFile) return;
@@ -311,8 +289,28 @@ export function AdminUsersView() {
     }
   }
 
+  async function changeApplicationStatus(
+    application: AdminApplicationRecord,
+    status: (typeof applicationStatuses)[number],
+  ) {
+    setUpdatingApplicationId(application.id);
+    setError("");
+    try {
+      const response = await updateAdminApplicationStatus(application.id, status, application.updatedAt);
+      setApplications((current) =>
+        current.map((item) =>
+          item?.id === application.id ? { ...item, ...response.data.application } : item,
+        ),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update application status.");
+    } finally {
+      setUpdatingApplicationId(null);
+    }
+  }
+
   const selectedApplications = selectedUser
-    ? applications.filter((application) => application.customer?.id === selectedUser.id)
+    ? applications.filter((application) => application?.customer?.id === selectedUser.id)
     : [];
 
   return (
@@ -342,20 +340,44 @@ export function AdminUsersView() {
             <div className="mt-5 space-y-3">
               {selectedApplications.length ? selectedApplications.map((application) => (
                   <div key={application.id} className="rounded-fm-md border border-fm-border-soft bg-fm-surface p-3">
-                    <button
-                      type="button"
-                      onClick={() => void toggleApplication(application.id)}
-                      className="flex w-full flex-wrap items-center justify-between gap-3 text-left"
-                    >
-                    <div>
-                      <p className="text-sm font-semibold">{application.serviceSlug ?? application.service}</p>
-                      <p className="mt-1 text-xs text-fm-text-secondary">Submitted {formatDate(application.createdAt)}</p>
-                    </div>
+                    <div className="flex w-full flex-wrap items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void toggleApplication(application.id)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <p className="text-sm font-semibold">{application.serviceSlug ?? application.service}</p>
+                        <p className="mt-1 text-xs text-fm-text-secondary">Submitted {formatDate(application.createdAt)}</p>
+                      </button>
                       <span className="flex items-center gap-2">
-                        <span className="rounded-full border border-fm-border px-2.5 py-1 text-xs font-medium">{application.status?.replaceAll("_", " ") ?? "Submitted"}</span>
-                        <span className="text-lg text-fm-text-tertiary">{expandedApplicationId === application.id ? "−" : "+"}</span>
+                        <select
+                          value={application.status ?? "submitted"}
+                          disabled={updatingApplicationId === application.id}
+                          onChange={(event) =>
+                            void changeApplicationStatus(
+                              application,
+                              event.target.value as (typeof applicationStatuses)[number],
+                            )
+                          }
+                          onClick={(event) => event.stopPropagation()}
+                          className="h-9 rounded-fm-md border border-fm-border bg-fm-surface px-2 text-xs font-medium capitalize outline-none focus:border-fm-lime disabled:opacity-60"
+                        >
+                          {applicationStatuses.map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          aria-label="Toggle application details"
+                          onClick={() => void toggleApplication(application.id)}
+                          className="text-lg text-fm-text-tertiary"
+                        >
+                          {expandedApplicationId === application.id ? "−" : "+"}
+                        </button>
                       </span>
-                    </button>
+                    </div>
                     {expandedApplicationId === application.id && (
                       <div className="mt-4 border-t border-fm-border-soft pt-4">
                         <p className="fm-label mb-2">Uploaded documents</p>
@@ -372,7 +394,7 @@ export function AdminUsersView() {
                                 rel="noreferrer"
                                 className="flex items-center justify-between rounded-fm-md border border-fm-border-soft px-3 py-2 text-xs text-fm-text-secondary hover:border-fm-lime hover:text-fm-lime"
                               >
-                                <span className="truncate">{document.path.split("/").pop()}</span>
+                                <span className="truncate">{document.path?.split("/").pop() ?? "Uploaded document"}</span>
                                 <Download size={14} />
                               </a>
                             ))}
@@ -407,8 +429,8 @@ export function AdminUsersView() {
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {users.map((user) => {
-              const applicationCount = applications.filter((application) => application.customer?.id === user.id).length || user.applicationsCount;
-              return <UserCard key={user.id} user={user} applicationCount={applicationCount} onClick={() => setSelectedUser(user)} onPaymentChange={changePaymentStatus} />;
+              const applicationCount = applications.filter((application) => application?.customer?.id === user.id).length || user.applicationsCount;
+              return <UserCard key={user.id} user={user} applicationCount={applicationCount} onClick={() => setSelectedUser(user)} />;
             })}
           </div>
         </>
@@ -577,33 +599,4 @@ export function AdminSecurityView() {
   );
 }
 
-export function StaffUsersView() {
-  const [users, setUsers] = useState<AdminUserRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [uploading, setUploading] = useState<string | null>(null);
-
-  useEffect(() => {
-    getStaffUsers().then((response) => setUsers(response.data.users)).catch((err) => setError(err instanceof Error ? err.message : "Unable to load paid users.")).finally(() => setLoading(false));
-  }, []);
-
-  async function uploadDocument(applicationId: string, file: File | undefined) {
-    if (!file) return;
-    setUploading(applicationId);
-    setError("");
-    try {
-      await uploadStaffDocument(applicationId, file);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to upload document.");
-    } finally {
-      setUploading(null);
-    }
-  }
-
-  return (
-    <Panel title="Paid customers" description="You can view paid customers and upload their application documents.">
-      {error && <p className="mb-4 text-sm text-fm-danger">{error}</p>}
-      {loading ? <p className="py-8 text-sm text-fm-text-secondary">Loading paid customers...</p> : !users.length ? <p className="py-8 text-sm text-fm-text-secondary">No paid customers yet.</p> : users.map((user) => <div key={user.id} className="border-b border-fm-border-soft py-4 last:border-b-0"><div className="flex items-center justify-between gap-4"><div className="flex min-w-0 items-center gap-3"><Users size={18} className="shrink-0 text-fm-lime" /><div className="min-w-0"><p className="truncate text-sm font-semibold"><FullName user={user} /></p><p className="truncate text-xs text-fm-text-secondary">{user.email}</p></div></div><span className="text-xs text-fm-text-secondary">{user.paidApplicationsCount} paid application{user.paidApplicationsCount === 1 ? "" : "s"}</span></div>{user.applicationIds?.map((applicationId) => <label key={applicationId} className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-fm-md border border-dashed border-fm-border px-3 py-2 text-xs font-semibold text-fm-text-secondary hover:border-fm-lime hover:text-fm-lime"><span>Upload for {applicationId.slice(0, 10)}</span><input type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={uploading === applicationId} onChange={(event) => { void uploadDocument(applicationId, event.target.files?.[0]); event.currentTarget.value = ""; }} className="sr-only" /></label>)}</div>)}
-    </Panel>
-  );
-}
+export { StaffUsersView } from "@/components/staff/StaffUsersView";
