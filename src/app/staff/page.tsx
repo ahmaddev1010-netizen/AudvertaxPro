@@ -45,7 +45,7 @@ export default function StaffPage() {
           <button type="button" aria-label="Close sidebar" onClick={() => setMobileSidebarOpen(false)} className="rounded-fm-md p-2 text-fm-text-secondary hover:bg-fm-surface-raised lg:hidden"><X size={18} /></button>
         </div>
         <nav className="mt-8 space-y-2">
-          <div className="flex items-center gap-3 rounded-fm-md bg-fm-lime px-3 py-3 text-sm font-semibold text-fm-graphite-deep"><Users size={18} /> Paid customers</div>
+          <div className="flex items-center gap-3 rounded-fm-md bg-fm-lime px-3 py-3 text-sm font-semibold text-fm-graphite-deep"><Users size={18} /> Customers</div>
         </nav>
         <div className="mt-auto border-t border-fm-border-soft pt-4">
           <button type="button" onClick={() => void logout().then(() => router.replace("/login"))} className="flex w-full items-center gap-3 rounded-fm-md border border-fm-danger/30 bg-fm-danger/5 px-3 py-3 text-left text-sm font-semibold text-fm-danger hover:bg-fm-danger/10"><LogOut size={17} /> Logout</button>
