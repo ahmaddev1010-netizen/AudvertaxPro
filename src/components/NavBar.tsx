@@ -7,7 +7,7 @@ import {
   ArrowRight,
   Bank,
   Briefcase,
-  Buildings,
+  Buildings, 
   FileText,
   List,
   SignOut,
@@ -271,16 +271,12 @@ const navLink =
 export default function NavBar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [servicesOpen, setServicesOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const servicesRef = useRef<HTMLLIElement>(null);
   const { user, logout } = useAuth();
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
     if (!mobileOpen) return;
+
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
@@ -308,11 +304,16 @@ export default function NavBar() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  function closeMobileMenu() {
+    setMobileOpen(false);
+    setServicesOpen(false);
+  }
+
   async function handleLogout() {
     try {
       await logout();
     } finally {
-      setMobileOpen(false);
+      closeMobileMenu();
       window.location.href = "/";
     }
   }
@@ -368,7 +369,7 @@ export default function NavBar() {
             id="services-navbar-dropdown"
             role="menu"
             aria-label="Services menu"
-            className="absolute inset-x-0 left-[50%] top-[calc(100%+8px)] z-[120] mx-auto flex w-[min(1180px,calc(100vw-32px))] flex-col justify-center overflow-hidden rounded-[var(--fm-radius-feature)] border border-[var(--fm-border)] bg-[var(--fm-surface)] shadow-[var(--fm-shadow-elevated)] backdrop-blur-xl animate-[megaMenuCurtainDrop_320ms_var(--fm-motion-ease)_both]"
+            className="absolute inset-x-0 left-[50%] top-[calc(100%)] z-[120] mx-auto flex max-h-[calc(100vh-120px)] w-[min(1180px,calc(100vw-32px))] flex-col justify-center overflow-y-auto overflow-x-hidden rounded-[var(--fm-radius-feature)] border border-[var(--fm-border)] bg-[var(--fm-surface)] shadow-[var(--fm-shadow-elevated)] backdrop-blur-xl overscroll-contain animate-[megaMenuCurtainDrop_320ms_var(--fm-motion-ease)_both]"
           >
             <div className="flex items-end justify-between gap-fm-6 border-b border-[var(--fm-border-soft)] px-fm-6 py-fm-5">
               <div>
@@ -412,8 +413,8 @@ export default function NavBar() {
           </div>
         )}
 
-        <div className="flex flex-shrink-0 items-center gap-2.5">
-          {mounted && user ? (
+        <div className="flex flex-shrink-0 items-center gap-2">
+          {user ? (
             <div className="group relative">
               <Link
                 href="/dashboard"
@@ -458,7 +459,13 @@ export default function NavBar() {
             type="button"
             aria-label="Open menu"
             aria-expanded={mobileOpen}
-            onClick={() => setMobileOpen((value) => !value)}
+            onClick={() =>
+              setMobileOpen((value) => {
+                const nextValue = !value;
+                if (!nextValue) setServicesOpen(false);
+                return nextValue;
+              })
+            }
             className="flex h-9 w-9 items-center justify-center rounded-[var(--fm-radius-md)] border border-[var(--fm-border)] bg-[var(--fm-surface)] text-[var(--fm-text-secondary)] transition-colors hover:bg-[var(--fm-surface-raised)] hover:text-[var(--fm-text-primary)] lg:hidden"
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <List className="h-5 w-5" />}
@@ -480,7 +487,7 @@ export default function NavBar() {
           <div className="p-2">
             <Link
               href="/"
-              onClick={() => setMobileOpen(false)}
+              onClick={closeMobileMenu}
               className="flex w-full items-center rounded-[var(--fm-radius-md)] px-3 py-3 font-display text-[16px] font-semibold text-[var(--fm-text-primary)] hover:bg-[var(--fm-lime-soft)]"
             >
               Home
@@ -490,7 +497,7 @@ export default function NavBar() {
               <Link
                 key={item.label}
                 href={item.href!}
-                onClick={() => setMobileOpen(false)}
+                onClick={closeMobileMenu}
                 className="flex w-full items-center rounded-[var(--fm-radius-md)] px-3 py-3 font-display text-[16px] font-semibold text-[var(--fm-text-primary)] hover:bg-[var(--fm-lime-soft)]"
               >
                 {item.label}
@@ -528,10 +535,7 @@ export default function NavBar() {
                             {item.href ? (
                               <Link
                                 href={item.href}
-                                onClick={() => {
-                                  setServicesOpen(false);
-                                  setMobileOpen(false);
-                                }}
+                                onClick={closeMobileMenu}
                                 className="flex w-full items-center gap-2 rounded-[var(--fm-radius-md)] px-3 py-2.5 font-display text-sm font-medium text-[var(--fm-text-secondary)] transition-colors hover:bg-[var(--fm-lime-soft)] hover:text-[var(--fm-text-primary)]"
                               >
                                 {item.icon && (
@@ -558,10 +562,7 @@ export default function NavBar() {
                                         <Link
                                           key={child.title}
                                           href={child.href}
-                                          onClick={() => {
-                                            setServicesOpen(false);
-                                            setMobileOpen(false);
-                                          }}
+                                          onClick={closeMobileMenu}
                                           className="block rounded-[var(--fm-radius-md)] px-2 py-2 font-display text-xs text-[var(--fm-text-secondary)] hover:bg-[var(--fm-lime-soft)] hover:text-[var(--fm-text-primary)]"
                                         >
                                           {child.title}
