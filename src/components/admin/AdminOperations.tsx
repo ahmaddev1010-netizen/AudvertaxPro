@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft,
   KeyRound,
@@ -39,6 +39,25 @@ function formatDate(value?: string) {
 
 function FullName({ user }: { user: { firstName: string; lastName: string } }) {
   return <span>{`${user.firstName} ${user.lastName}`.trim() || "Unnamed user"}</span>;
+}
+
+function normalizeStaff(value: unknown): AdminStaffRecord[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const record = item as Partial<AdminStaffRecord>;
+    if (typeof record.id !== "string") return [];
+    return [
+      {
+        ...record,
+        id: record.id,
+        email: typeof record.email === "string" ? record.email : "Unknown email",
+        firstName: typeof record.firstName === "string" ? record.firstName : "",
+        lastName: typeof record.lastName === "string" ? record.lastName : "",
+        role: "staff",
+      } as AdminStaffRecord,
+    ];
+  });
 }
 
 function hasSubmittedService(user: AdminUserRecord) {
@@ -419,24 +438,39 @@ export function StaffManagementView() {
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", password: "" });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  async function loadStaff() {
+  const loadStaff = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const response = await getAdminStaff();
-      setStaff(response.data.staff);
+      setStaff(normalizeStaff(response.data?.staff));
+      setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load staff.");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
+    let active = true;
     getAdminStaff()
-      .then((response) => setStaff(response.data.staff))
-      .catch((err) => setError(err instanceof Error ? err.message : "Unable to load staff."))
-      .finally(() => setLoading(false));
+      .then((response) => {
+        if (!active) return;
+        setStaff(normalizeStaff(response.data?.staff));
+        setError("");
+      })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : "Unable to load staff.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function addStaff(event: FormEvent<HTMLFormElement>) {
@@ -444,8 +478,8 @@ export function StaffManagementView() {
     setSubmitting(true);
     setError("");
     try {
-      const response = await createAdminStaff(form);
-      setStaff((current) => [response.data.staff, ...current]);
+      await createAdminStaff(form);
+      await loadStaff(false);
       setForm({ firstName: "", lastName: "", email: "", password: "" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create staff account.");
@@ -455,12 +489,17 @@ export function StaffManagementView() {
   }
 
   async function removeStaff(staffMember: AdminStaffRecord) {
+    if (removingId) return;
     if (!window.confirm(`Remove ${staffMember.email} from staff?`)) return;
+    setRemovingId(staffMember.id);
+    setError("");
     try {
       await removeAdminStaff(staffMember.id);
-      setStaff((current) => current.filter((item) => item.id !== staffMember.id));
+      await loadStaff(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to remove staff account.");
+    } finally {
+      setRemovingId(null);
     }
   }
 
@@ -491,7 +530,7 @@ export function StaffManagementView() {
         {loading ? <p className="py-6 text-sm text-fm-text-secondary">Loading staff...</p> : !staff.length ? <p className="py-6 text-sm text-fm-text-secondary">No staff accounts yet.</p> : staff.map((member) => (
           <div key={member.id} className="flex items-center justify-between gap-4 border-b border-fm-border-soft py-4 last:border-b-0">
             <div className="flex min-w-0 items-center gap-3"><UserRound size={18} className="shrink-0 text-fm-lime" /><div className="min-w-0"><p className="truncate text-sm font-semibold"><FullName user={member} /></p><p className="truncate text-xs text-fm-text-secondary">{member.email}</p></div></div>
-            <button type="button" onClick={() => void removeStaff(member)} className="inline-flex items-center gap-1.5 rounded-fm-md border border-fm-danger/30 px-3 py-2 text-xs font-semibold text-fm-danger hover:bg-fm-danger/10"><Trash2 size={14} /> Remove</button>
+            <button type="button" disabled={removingId !== null} onClick={() => void removeStaff(member)} className="inline-flex items-center gap-1.5 rounded-fm-md border border-fm-danger/30 px-3 py-2 text-xs font-semibold text-fm-danger hover:bg-fm-danger/10 disabled:cursor-not-allowed disabled:opacity-50"><Trash2 size={14} /> {removingId === member.id ? "Removing..." : "Remove"}</button>
           </div>
         ))}
       </Panel>
